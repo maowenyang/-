@@ -1,0 +1,41 @@
+import requests #请求库，请求数据
+from pymongo import MongoClient #用来连接MongoDB数据库并添入数据
+import time #用于延时爬取
+from fake_useragent import UserAgent #用来随机产生浏览器信息
+
+client = MongoClient() #连接数据库
+db = client.lagou #创建lagou数据库
+lagou = db.HR #创建HR集合
+
+headers = { 'Referer':'https://www.lagou.com/jobs/list_PHP?labelWords=&fromSearch=true&suginput='} #添加headers信息
+
+def get_job_info(page, kd): #定义一个函数，可以指定翻页数，可以加入一个职位参数kd，比如HR
+    for i in range(page):
+        ua = UserAgent() 
+        headers['User-Agent'] = ua.random #使用fake-Agent随机生成User-Agent，添加到headers
+       
+        url = 'https://www.lagou.com/jobs/positionAjax.json?needAddtionalResult=false' #post方法需要添加Ajax的URL
+        payload = {
+            'first': 'true',
+            'pn': i+1,
+            'kd': kd,
+        }#post方法需要添加这些参数
+       
+        url_start = 'https://www.lagou.com/jobs/list_PHP?labelWords=&fromSearch=true&suginput=' #浏览器地址栏URL
+        s = requests.Session()
+        s.get(url_start, headers=headers, timeout=3)  # 请求获取cookies
+        cookie = s.cookies  # 为此次获取的cookies
+        
+        response = requests.post(url, data=payload, headers=headers, cookies=cookie) #请求返回数据
+        
+        if response.status_code == 200: #200为状态码，表示返回数据正常
+            job_json = response.json()['content']['positionResult']['result'] 
+            lagou.insert(job_json) #将爬取到的数据添加进数据库lagou
+        else:
+            print('Something Wrong!')
+
+        print('正在爬取' + str(i+1) + '页的数据...') 
+        time.sleep(3) #延迟三秒
+        
+if __name__ == '__main__':
+    get_job_info(30, 'HR') #爬取前30页的HR职位信息
